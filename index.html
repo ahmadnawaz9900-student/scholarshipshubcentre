@@ -1,0 +1,99 @@
+import os
+import json
+from flask import Flask, render_template, request, redirect, url_for, flash
+from werkzeug.utils import secure_filename
+from typing import List, Dict, Union
+
+UPLOAD_FOLDER = 'uploads'
+DATA_FILE = 'scholarships.json'
+ALLOWED_EXTENSIONS = {'json'}
+
+app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.secret_key = 'supersecretkeyforflashmessages'
+
+# Ensure upload directory exists
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+def load_scholarships() -> List[Dict[str, str]]:
+    """
+    Loads scholarship data from the JSON file.
+    Returns an empty list if the file does not exist or is invalid.
+    """
+    if not os.path.exists(DATA_FILE):
+        return []
+    try:
+        with open(DATA_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return []
+
+def save_scholarships(data: List[Dict[str, str]]) -> None:
+    """
+    Saves scholarship data to the JSON file.
+    """
+    try:
+        with open(DATA_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=4)
+    except IOError as e:
+        print(f"Error saving data: {e}")
+
+def allowed_file(filename: str) -> bool:
+    """
+    Checks if the uploaded file has an allowed extension.
+    """
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route('/')
+def index() -> str:
+    """
+    Renders the index page displaying the list of scholarships.
+    """
+    scholarships = load_scholarships()
+    return render_template('index.html', scholarships=scholarships)
+
+@app.route('/upload', methods=['POST'])
+def upload_file() -> Union[str, Flask.response_class]:
+    """
+    Handles file uploads, processes the JSON content, and updates the data file.
+    """
+    if 'file' not in request.files:
+        flash('No file part')
+        return redirect(url_for('index'))
+    file = request.files['file']
+    if file.filename == '':
+        flash('No selected file')
+        return redirect(url_for('index'))
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        
+        try:
+            file.save(filepath)
+            
+            with open(filepath, 'r', encoding='utf-8') as f:
+                new_data = json.load(f)
+            
+            if not isinstance(new_data, list):
+                 flash('Invalid JSON format: Must be a list of objects.')
+                 return redirect(url_for('index'))
+
+            current_data = load_scholarships()
+            current_data.extend(new_data)
+            save_scholarships(current_data)
+            
+            flash('Scholarships updated successfully!')
+        except (json.JSONDecodeError, IOError) as e:
+            flash(f'Failed to process file: {str(e)}')
+        final_filename = filepath # keep variable alive for finally
+        if os.path.exists(filepath):
+            os.remove(filepath)
+
+        return redirect(url_for('index'))
+    else:
+        flash('Allowed file types are: json')
+        return redirect(url_for('index'))
+
+if __name__ == '__main__':
+    app.run(debug=True)
