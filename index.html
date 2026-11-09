@@ -1,99 +1,153 @@
-import os
-import json
-from flask import Flask, render_template, request, redirect, url_for, flash
-from werkzeug.utils import secure_filename
-from typing import List, Dict, Union
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scholarship Information</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        header {
+            text-align: center;
+            padding: 20px 0;
+            background-color: #004a99;
+            color: white;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .scholarship-card {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .scholarship-card h2 {
+            margin-top: 0;
+            color: #004a99;
+        }
+        .details {
+            margin-bottom: 10px;
+        }
+        .details strong {
+            display: inline-block;
+            width: 120px;
+        }
+        .apply-btn {
+            display: inline-block;
+            padding: 10px 15px;
+            background-color: #28a745;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .apply-btn:hover {
+            background-color: #218838;
+        }
+        #no-data-message {
+            display: none; /* Hidden by default, shown if JS fails to load data */
+            text-align: center;
+            padding: 20px;
+            background: #fff;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
 
-UPLOAD_FOLDER = 'uploads'
-DATA_FILE = 'scholarships.json'
-ALLOWED_EXTENSIONS = {'json'}
+    <header>
+        <h1>Available Scholarships</h1>
+    </header>
 
-app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.secret_key = 'supersecretkeyforflashmessages'
+    <!-- Container where dynamic content will be inserted -->
+    <main id="scholarship-container">
+        <!-- Placeholder for loading state -->
+        <p style="text-align: center;">Loading scholarship information...</p>
+    </main>
 
-# Ensure upload directory exists
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    <!-- Message shown if no scholarships are found or JS fails -->
+    <div id="no-data-message">
+        <p>Currently, there are no scholarship listings available. Please check back later.</p>
+    </div>
 
-def load_scholarships() -> List[Dict[str, str]]:
-    """
-    Loads scholarship data from the JSON file.
-    Returns an empty list if the file does not exist or is invalid.
-    """
-    if not os.path.exists(DATA_FILE):
-        return []
-    try:
-        with open(DATA_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except (json.JSONDecodeError, IOError):
-        return []
+    <script>
+        // Data structure representing scholarship information.
+        // This replaces the dynamic data that would have come from Flask.
+        const scholarshipData = [
+            {
+                title: "Academic Excellence Award",
+                amount: "$5,000",
+                deadline: "2024-05-30",
+                description: "Awarded to students with a GPA of 3.8 or higher.",
+                applyUrl: "#"
+            },
+            {
+                title: "Community Growth Scholarship",
+                amount: "$2,500",
+                deadline: "2024-06-15",
+                description: "For students demonstrating significant community service involvement.",
+                applyUrl: "#"
+            },
+            {
+                title: "STEM Innovation Grant",
+                amount: "$10,000",
+                deadline: "2024-07-01",
+                description: "Supporting innovators in Science, Technology, Engineering, and Math.",
+                applyUrl: "#"
+            }
+        ];
 
-def save_scholarships(data: List[Dict[str, str]]) -> None:
-    """
-    Saves scholarship data to the JSON file.
-    """
-    try:
-        with open(DATA_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=4)
-    except IOError as e:
-        print(f"Error saving data: {e}")
-
-def allowed_file(filename: str) -> bool:
-    """
-    Checks if the uploaded file has an allowed extension.
-    """
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-@app.route('/')
-def index() -> str:
-    """
-    Renders the index page displaying the list of scholarships.
-    """
-    scholarships = load_scholarships()
-    return render_template('index.html', scholarships=scholarships)
-
-@app.route('/upload', methods=['POST'])
-def upload_file() -> Union[str, Flask.response_class]:
-    """
-    Handles file uploads, processes the JSON content, and updates the data file.
-    """
-    if 'file' not in request.files:
-        flash('No file part')
-        return redirect(url_for('index'))
-    file = request.files['file']
-    if file.filename == '':
-        flash('No selected file')
-        return redirect(url_for('index'))
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        
-        try:
-            file.save(filepath)
+        // Function to render the scholarships to the page
+        function renderScholarships(data) {
+            const container = document.getElementById('scholarship-container');
+            const noDataMsg = document.getElementById('no-data-message');
             
-            with open(filepath, 'r', encoding='utf-8') as f:
-                new_data = json.load(f)
-            
-            if not isinstance(new_data, list):
-                 flash('Invalid JSON format: Must be a list of objects.')
-                 return redirect(url_for('index'))
+            // Clear placeholder text
+            container.innerHTML = '';
 
-            current_data = load_scholarships()
-            current_data.extend(new_data)
-            save_scholarships(current_data)
-            
-            flash('Scholarships updated successfully!')
-        except (json.JSONDecodeError, IOError) as e:
-            flash(f'Failed to process file: {str(e)}')
-        final_filename = filepath # keep variable alive for finally
-        if os.path.exists(filepath):
-            os.remove(filepath)
+            // Handle edge case where data is empty
+            if (!data || data.length === 0) {
+                container.style.display = 'none';
+                noDataMsg.style.display = 'block';
+                return;
+            }
 
-        return redirect(url_for('index'))
-    else:
-        flash('Allowed file types are: json')
-        return redirect(url_for('index'))
+            // Iterate through data and generate HTML
+            data.forEach(scholarship => {
+                const card = document.createElement('div');
+                card.className = 'scholarship-card';
 
-if __name__ == '__main__':
-    app.run(debug=True)
+                // Modern best practice: Using template literals to construct HTML
+                card.innerHTML = `
+                    <h2>${scholarship.title}</h2>
+                    <div class="details"><strong>Amount:</strong> ${scholarship.amount}</div>
+                    <div class="details"><strong>Deadline:</strong> ${scholarship.deadline}</div>
+                    <p>${scholarship.description}</p>
+                    <a href="${scholarship.applyUrl}" class="apply-btn" target="_blank" rel="noopener noreferrer">Apply Now</a>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // Simulate fetching dynamic data on load
+        window.addEventListener('load', () => {
+            // Basic error handling for visual assurance
+            try {
+                // To display 'no data' state, change to: renderScholarships([])
+                renderScholarships(scholarshipData); 
+            } catch (error) {
+                console.error("Error rendering scholarships:", error);
+                document.getElementById('scholarship-container').innerHTML = '<p style="color:red; text-align:center;">Failed to load scholarship data.</p>';
+            }
+        });
+    </script>
+</body>
+</html>
